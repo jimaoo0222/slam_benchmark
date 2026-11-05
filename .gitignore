@@ -1,0 +1,101 @@
+# ══════════════════════════════════════════════════════════════
+#  仓库里只放「重跑生成不了」和「结论」两类东西
+#  ────────────────────────────────────────────────────────────
+#  会进 git：scripts/ config/ patches/ docs/ photo/ tutorials/
+#            README、results 下各实验的 README.md / 对比表.md /
+#            metrics.json / gt.txt / distances.txt
+#  不进 git：rosbag 原始数据、轨迹、地图、日志、出图、编译产物
+# ══════════════════════════════════════════════════════════════
+
+
+# ── 1. 采集的原始数据（最大头，8.5 GB）──────────────────────
+# 一个 bag ≈ 1 GB。要留档就压到移动硬盘/网盘，别塞 git。
+rosbag/**
+!rosbag/.gitkeep
+*.db3
+*.mcap
+
+# 下载回来的压缩包
+*.zip
+*.lvx2
+
+
+# ── 2. 算法跑出来的中间产物（重跑就有）──────────────────────
+# 轨迹：32 条，每条 100~500 KB，脚本重跑就能再生成
+results/**/traj_*.txt
+results/**/traj.txt
+results/**/*_clean.txt
+
+# 地图点云：每个 2~11 MB
+results/**/*.pcd
+
+# GLIM 子图（imu_rate.txt 单个 3 MB）
+results/**/submaps/
+
+# 日志：单个最大的 4.2 MB
+results/**/*.log
+results/**/eval_*/
+results/**/protocol_eval/
+results/**/*.html
+
+# 出图（脚本生成的 png；docs 里引用的在 photo/ 下，不受影响）
+results/**/*.png
+
+# 一次性的试跑目录
+results/test_*/
+
+# 只剩 metadata.yaml 而没有 db3 的孤儿目录（bag 本身被忽略了）
+results/**/metadata.yaml
+
+
+# ── 3. 脚本的运行输出 ──────────────────────────────────────
+/protocol_eval/
+/scripts/benchmark_report.png
+/scripts/benchmark_report.csv
+/scripts/__pycache__/
+/scripts/liosam/__pycache__/
+
+# colcon / catkin 编译日志
+/log/
+/build/
+/install/
+
+
+# ── 4. 空目录 / 占位 ───────────────────────────────────────
+datasets/
+configs/
+evalio_data/
+
+
+# ── 5. Python ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+.python-version
+.venv/
+venv/
+
+
+# ── 6. 编辑器 / 系统 ───────────────────────────────────────
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ── 7. 环境自检的临时文件 ──────────────────────────────────
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# ── 8. 第三方驱动源码（只作参考，不 vendor） ────────────────
+# C01 官方 ROS2 驱动带自己的 .git，直接提交会变成嵌套仓库。
+# 需要时自己 clone：
+#   git clone -b ros2 https://github.com/SCUT-RobotIC/Skylandx_ros_driver.git driver/Skylandx_ros_driver
+driver/
+
+# 重跑脚本的断点标记（本地产物，不需要提交）
+*.done
