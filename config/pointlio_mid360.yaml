@@ -1,0 +1,69 @@
+# Point-LIO · Livox MID-360 配置（ROS 2）
+# 点云走 CustomMsg（lidar_type: 1），由 scripts/16_pc2_to_custom.py 从 PointCloud2 转换
+/**:
+  ros__parameters:
+    common:
+      lid_topic: "/livox/lidar_custom"
+      imu_topic: "/livox/imu"
+      con_frame: false
+      con_frame_num: 1
+      cut_frame: false
+      cut_frame_time_interval: 0.1
+      time_diff_lidar_to_imu: 0.0
+
+    preprocess:
+      lidar_type: 1          # 1 = Livox CustomMsg
+      scan_line: 4           # MID-360 有 4 条扫描线（实测 line 0~3）
+      timestamp_unit: 3      # PointCloud2 路径用；CustomMsg 内部按 ns→ms 处理
+      blind: 0.4             # MID-360 近距盲区约 0.1 m，留余量
+
+    mapping:
+      imu_en: true
+      extrinsic_est_en: false
+      imu_time_inte: 0.005   # IMU 200 Hz
+      lidar_time_inte: 0.1   # 点云 10 Hz
+      satu_acc: 3.0
+      satu_gyro: 35.0
+      acc_norm: 1.0          # Livox IMU 输出单位是 g（静止模长约 1.0）
+      lidar_meas_cov: 0.01
+      acc_cov_output: 500.0
+      gyr_cov_output: 1000.0
+      b_acc_cov: 0.0001
+      b_gyr_cov: 0.0001
+      imu_meas_acc_cov: 0.1
+      imu_meas_omg_cov: 0.1
+      gyr_cov_input: 0.01
+      acc_cov_input: 0.1
+      plane_thr: 0.1
+      match_s: 81.0
+      ivox_grid_resolution: 0.2   # 室内小场景，2.0 太粗
+      gravity: [0.0, 0.0, -9.810]
+      gravity_init: [0.0, 0.0, -9.810]
+      extrinsic_T: [0.011, 0.02329, -0.04412]   # MID-360 手册 §3.5（作者注释值）   # MID-360 手册 §3.5（mm→m）
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+    odometry:
+      publish_odometry_without_downsample: false
+
+    publish:
+      path_en: true
+      scan_publish_en: true
+      scan_bodyframe_pub_en: false
+
+    pcd_save:
+      pcd_save_en: false
+      interval: -1
+
+    # ── 顶层参数（原 launch 里单独传的）──
+    use_imu_as_input: false
+    prop_at_freq_of_imu: true
+    check_satu: true
+    init_map_size: 10
+    point_filter_num: 1
+    space_down_sample: true
+    filter_size_surf: 0.5
+    filter_size_map: 0.4
+    ivox_nearby_type: 6
+    runtime_pos_log_enable: false

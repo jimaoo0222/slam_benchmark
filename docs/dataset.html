@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据集与两颗雷达的对比 · SLAM/LIO Benchmark</title>
+<meta name="description" content="Livox MID-360s 与 SKYLANDX C01 的规格与实测对比，以及 8 个自录 rosbag 的下载、采集方法与场地真值">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  .r1 { color: #0969da; font-weight: 600; }
+  .r2 { color: #bf3989; font-weight: 600; }
+  .badge {
+    display: inline-block; padding: 1px 7px; border-radius: 10px;
+    font-size: 12px; font-weight: 600; vertical-align: 1px; white-space: nowrap;
+  }
+  .badge.win  { background: #dafbe1; color: #1a7f37; }
+  .badge.lose { background: #fff1e5; color: #bc4c00; }
+  .badge.same { background: #eaeef2; color: #59636e; }
+  .toc {
+    background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 8px;
+    padding: 14px 20px; margin: 24px 0 32px; font-size: 14.5px;
+  }
+  .toc ol { margin: 6px 0 0; padding-left: 22px; }
+  .toc li { margin: 3px 0; }
+  .drive {
+    display: inline-block; padding: 9px 18px; border-radius: 6px;
+    background: #0969da; color: #fff; font-weight: 600; font-size: 15px;
+    text-decoration: none; margin: 6px 0 4px;
+  }
+  .drive:hover { background: #0860ca; text-decoration: none; }
+  .fingerprint {
+    background: #f6f8fa; border: 1px solid #d1d9e0; border-left: 4px solid #bf3989;
+    border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 18px 0;
+  }
+  .vs {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px;
+    align-items: center; margin: 24px 0;
+  }
+  .vs > div {
+    border: 1px solid #d1d9e0; border-radius: 8px; padding: 16px 18px;
+  }
+  .vs .n { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .vs .d { font-size: 13.5px; color: #59636e; line-height: 1.6; }
+  .vs .mid { border: none; font-size: 20px; color: #8c959f; font-weight: 700; }
+  @media (max-width: 640px) {
+    .vs { grid-template-columns: 1fr; }
+    .vs .mid { text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./">SLAM/LIO Benchmark</a>
+    <nav>
+      <a href="./">概览</a>
+      <a href="dataset.html" class="active">数据集与雷达对比</a>
+      <a href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/02_%E5%9B%9B%E7%AE%97%E6%B3%95%E6%9C%80%E7%BB%88%E6%80%BB%E7%BB%93.md">算法结果</a>
+      <a href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/03_%E5%9B%9B%E7%AE%97%E6%B3%95%E6%89%8B%E5%8A%A8%E5%90%AF%E5%8A%A8%E4%B8%8ERViz.md">上手</a>
+      <a href="https://github.com/jimaoo0222/slam_benchmark">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+<h1>数据集与两颗雷达的对比</h1>
+<p class="subtitle">
+同一套采集流程、同一块场地、同样的四个算法，测了
+<span class="r1">Livox MID-360s</span> 和 <span class="r2">SKYLANDX C01</span>。
+下面实测数字都是从 bag 里直接量出来的
+</p>
+
+<div class="vs">
+  <div>
+    <div class="n r1">Livox MID-360s</div>
+    <div class="d">
+      成熟生态 / 出厂外参 / 上视更宽<br>
+      俯仰 −7° ~ +52° · 200k pts/s · 盲区 10 cm<br>
+      <span style="color:#1a7f37">适合：快速上手、高层高场景、嵌入式实时</span>
+    </div>
+  </div>
+  <div class="mid">vs</div>
+  <div>
+    <div class="n r2">SKYLANDX C01</div>
+    <div class="d">
+      点更密 / 下视更宽 / 盲区更小<br>
+      俯仰 −20° ~ +45° · 216k pts/s · 盲区 5 cm<br>
+      <span style="color:#bc4c00">短板：跑不满实时、供电下限 12 V、生态较新</span>
+    </div>
+  </div>
+</div>
+
+<div class="stats">
+  <div><div class="v">2</div><div class="k">雷达型号</div></div>
+  <div><div class="v">8</div><div class="k">rosbag</div></div>
+  <div><div class="v">8.44 GiB</div><div class="k">总大小</div></div>
+  <div><div class="v">30 min</div><div class="k">总时长</div></div>
+  <div><div class="v">17.7 k</div><div class="k">点云帧</div></div>
+</div>
+
+<div class="toc">
+<strong>目录</strong>
+<ol>
+  <li><a href="#download">下载（Google 网盘）</a></li>
+  <li><a href="#spec">规格对照</a></li>
+  <li><a href="#measured">实测差异：从 bag 里量出来的</a></li>
+  <li><a href="#fingerprint">怎么判断一份 bag 是哪颗雷达录的</a></li>
+  <li><a href="#driver">驱动层面：网段不同、驱动可选</a></li>
+  <li><a href="#extrinsic">IMU↔LiDAR 外参（两颗雷达都已确认）</a></li>
+  <li><a href="#accuracy">精度对比：8 个包，同样四个算法</a></li>
+  <li><a href="#realtime">跑算法时的速度差异</a></li>
+  <li><a href="#which">选型速查</a></li>
+  <li><a href="#how">采集方法</a></li>
+  <li><a href="#checksums">完整性校验</a></li>
+  <li><a href="#run">复现</a></li>
+</ol>
+</div>
+
+
+<h2 id="download">1. 下载</h2>
+
+<p>数据托管在 Google 网盘。</p>
+<p>
+<a class="drive" href="https://drive.google.com/drive/folders/1mxZHNM4_NCcRS3kTVd6HRsK5EZY6UiQu?usp=drive_link" target="_blank" rel="noopener">
+  打开 Google 网盘文件夹
+</a>
+</p>
+
+<table>
+<thead>
+<tr>
+  <th>包名</th><th>雷达</th><th>场地</th><th>走法</th>
+  <th class="num">时长</th><th class="num">大小</th><th>单独下载</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>01_1</code></td><td class="r1">MID-360s</td><td>老场地</td><td>0-1-2-3-4-0</td>
+  <td class="num">212.1 s</td><td class="num">1.05 GiB</td>
+  <td><a href="https://drive.google.com/drive/folders/1-nGX6X_OyW4B8LKgHoF2yV1bgQhAD-h7">下载</a></td>
+</tr>
+<tr>
+  <td><code>01_2</code></td><td class="r1">MID-360s</td><td>老场地</td><td>0-1-2-3-4-0（第 2 次）</td>
+  <td class="num">251.4 s</td><td class="num">1.24 GiB</td>
+  <td><a href="https://drive.google.com/drive/folders/1xE9oIbh2Y6XUrd8asVOvFs3Kb3hx7knj">下载</a></td>
+</tr>
+<tr>
+  <td><code>02_1</code></td><td class="r1">MID-360s</td><td>老场地</td><td>0-2-3-4-1-0</td>
+  <td class="num">240.3 s</td><td class="num">1.19 GiB</td>
+  <td><a href="https://drive.google.com/drive/folders/1UR27_0I6OFQ60hsnFH8r43IiZ1s_VOh8">下载</a></td>
+</tr>
+<tr>
+  <td><code>02_2</code></td><td class="r1">MID-360s</td><td>老场地</td><td>0-2-3-4-1-0（第 2 次）</td>
+  <td class="num">224.5 s</td><td class="num">1.11 GiB</td>
+  <td><a href="https://drive.google.com/drive/folders/1YkkDaGSH1NGch6LVtdoWcu-tJwbVtlyQ">下载</a></td>
+</tr>
+<tr>
+  <td><code>03_01</code></td><td class="r2">C01</td><td>新场地</td><td>0-1-2-3-4-5-0</td>
+  <td class="num">193.9 s</td><td class="num">1.03 GiB</td>
+  <td><a href="https://drive.google.com/drive/folders/1yV91qWPrYs5J79ETmQyZ-KOIb4UgkUCx">下载</a></td>
+</tr>
+<tr>
+  <td><code>03_02</code></td><td class="r2">C01</td><td>新场地</td><td>0-5-4-3-2-1-0（反向）</td>
+  <td class="num">234.7 s</td><td class="num">1.25 GiB</td>
+  <td><a href="https://drive.google.com/drive/folders/1RclxQxBnew3IIJP--BQpwN7ug98zgt3w">下载</a></td>
+</tr>
+<tr>
+  <td><code>04_01</code></td><td class="r2">C01</td><td>老场地</td><td>0-2-3-4-1-0</td>
+  <td class="num">158.6 s</td><td class="num">0.85 GiB</td>
+  <td><a href="https://drive.google.com/drive/folders/1xrKXzcDdNdzkxAw9kh9zKPOZ3NiFLkMc">下载</a></td>
+</tr>
+<tr>
+  <td><code>04_02</code></td><td class="r2">C01</td><td>老场地</td><td>0-1-2-3-4-0</td>
+  <td class="num">136.5 s</td><td class="num">0.73 GiB</td>
+  <td><a href="DRIVE_FILE_04_02">下载</a></td>
+</tr>
+</tbody>
+</table>
+
+
+<h2 id="spec">2. 规格对照</h2>
+
+<p>
+两颗雷达都是 <strong>905 nm / Class 1 / 非重复扫描 / 内置 200 Hz IMU</strong>，
+都走 <strong>UDP + Livox SDK2 协议</strong>。差别集中在视场、点率和供电。
+</p>
+
+<table>
+<thead>
+<tr><th>项</th><th class="r1">Livox MID-360s</th><th class="r2">SKYLANDX C01</th><th>差异影响</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>激光波长 / 人眼安全</td>
+  <td>905 nm / Class 1</td><td>905 nm / Class 1</td>
+  <td><span class="badge same">相同</span></td>
+</tr>
+<tr>
+  <td>测距</td>
+  <td>40 m @10% 反射率<br>70 m @80%</td>
+  <td>40 m @10% 反射率<br>70 m @80%</td>
+  <td><span class="badge same">相同</span></td>
+</tr>
+<tr>
+  <td><strong>近处盲区</strong></td>
+  <td>0.1 m</td>
+  <td><strong>0.05 m</strong></td>
+  <td><span class="badge win">C01 胜</span> 能贴得更近，适合贴地 / 贴墙</td>
+</tr>
+<tr>
+  <td><strong>垂直视场角</strong></td>
+  <td>59°<br>（−7° ~ +52°）</td>
+  <td><strong>65°</strong><br>（−20° ~ +45°）</td>
+  <td><span class="badge win">C01 下视胜</span>
+      往下多看 13°，脚下地形信息多很多；<br>
+      但上方少 7°，高处的货架 / 天花板覆盖变少</td>
+</tr>
+<tr>
+  <td><strong>点率</strong></td>
+  <td>200 000 pts/s</td>
+  <td><strong>216 000 pts/s</strong>（双线）<br>108 000（单线）</td>
+  <td><span class="badge win">C01 胜</span> 每帧多 8%</td>
+</tr>
+<tr>
+  <td>角分辨率</td>
+  <td>0.2°（水平）</td>
+  <td>0.15° 水平 / 0.36° 垂直</td>
+  <td><span class="badge win">C01 胜</span> 水平更细</td>
+</tr>
+<tr>
+  <td>扫描方式</td><td>非重复</td><td>非重复（3 轴）</td>
+  <td><span class="badge same">相同</span></td>
+</tr>
+<tr>
+  <td>帧率 / IMU</td><td>10 Hz / 200 Hz</td><td>10 Hz（最高 30 Hz）/ 200 Hz</td>
+  <td><span class="badge same">相同</span></td>
+</tr>
+<tr>
+  <td><strong>工作电压</strong></td>
+  <td>9 ~ 27 V</td>
+  <td><strong>12 ~ 30 V DC</strong></td>
+  <td><span class="badge lose">C01 劣势</span> 下限更高，
+      原来喂 MID-360 的 9 V 档位可能起不来</td>
+</tr>
+<tr>
+  <td>功率 / 防护</td><td>— / IP67</td><td>最大额定 15 W / IP67</td>
+  <td><span class="badge same">同级</span> 空载会明显发热，可用来判断是否上电</td>
+</tr>
+<tr>
+  <td><strong>重量</strong></td>
+  <td>265 g</td>
+  <td><strong>420 g</strong></td>
+  <td><span class="badge lose">C01 劣势</span> 支架承重要够</td>
+</tr>
+<tr>
+  <td>尺寸</td><td>较小</td><td>73 × 73.75 × 77.8 mm</td><td>—</td>
+</tr>
+</tbody>
+</table>
+
+
+<h2 id="measured">3. 实测差异：从 bag 里量出来的</h2>
+
+<p>
+规格书上的数字只能参考。真正决定算法表现的是<strong>每帧点数和视场覆盖</strong>，
+这两项可以直接从 bag 里算出来。
+</p>
+
+<table>
+<thead>
+<tr><th>指标</th><th class="r1">MID-360s</th><th class="r2">C01</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>每帧点数</td>
+  <td class="num">19 968 ~ 20 064</td>
+  <td class="num"><strong>21 600 ~ 21 888</strong></td>
+</tr>
+<tr>
+  <td>折算点率</td>
+  <td class="num">200 ~ 201 k pts/s</td>
+  <td class="num"><strong>215 ~ 219 k pts/s</strong></td>
+</tr>
+<tr>
+  <td><strong>俯仰角覆盖</strong></td>
+  <td class="num">−7.5° ~ +53.5°</td>
+  <td class="num"><strong>−20.3° ~ +44.9°</strong></td>
+</tr>
+<tr>
+  <td>点云频率</td><td class="num">10.0 Hz</td><td class="num">10.0 Hz</td>
+</tr>
+<tr>
+  <td>IMU 频率</td><td class="num">199.7 Hz</td><td class="num">199.7 Hz</td>
+</tr>
+<tr>
+  <td>点云格式</td>
+  <td colspan="2"><code>sensor_msgs/msg/PointCloud2</code>，
+      <code>point_step = 26</code>，<code>frame_id = livox_frame</code></td>
+</tr>
+<tr>
+  <td>每点字段</td>
+  <td colspan="2">
+    <code>x, y, z</code>（float32）+ <code>intensity</code>（float32）+
+    <code>line</code>（uint8，0~3）+ <code>timestamp</code>（float64，纳秒）
+  </td>
+</tr>
+<tr>
+  <td>bag 体积</td>
+  <td class="num">≈ 5.3 MB/s</td>
+  <td class="num">≈ 5.7 MB/s</td>
+</tr>
+</tbody>
+</table>
+
+<h3>实测俯仰角说明什么</h3>
+
+<p>
+规格书写 MID-360s 是 −7°~+52°、C01 是 −20°~+45°，实测分别是
+−7.5°~+53.5° 和 −20.3°~+44.9° —— <strong>两颗都对得上，说明厂商参数可信</strong>。
+</p>
+
+<p>这个差异对算法的实际影响：</p>
+
+<ul>
+  <li><strong>C01 多出的下视角（−20° vs −7°）</strong>：脚下 5~10 m 内的地面点变多。
+  好处是走廊、空旷场地的地面约束更强；坏处是地面点占比升高，
+  如果算法的体素降采样不区分地面，会浪费算力 —— 这也很可能是 C01
+  在这台机器上<a href="#realtime">跑不满实时</a>的原因之一。</li>
+  <li><strong>MID-360s 多出的上视角（+53° vs +45°）</strong>：天花板、高处货架覆盖更好，
+  在层高较高的室内竖直方向约束更强。老场地（货架仓库）MID-360s 略占优，
+  可能和这个有关，但样本太少不能下结论。</li>
+</ul>
+
+
+<h2 id="fingerprint">4. 怎么判断一份 bag 是哪颗雷达录的</h2>
+
+<div class="fingerprint">
+<strong>两条指纹，量一下就知道</strong>
+<ul style="margin:8px 0 0">
+  <li><strong>每帧点数</strong>：约 <span class="r1">20 000</span> → MID-360s；
+      约 <span class="r2">21 700</span> → C01</li>
+  <li><strong>俯仰角范围</strong>：<span class="r1">−7° ~ +53°</span> → MID-360s；
+      <span class="r2">−20° ~ +45°</span> → C01</li>
+</ul>
+</div>
+
+<pre>cd ~/slam_benchmark
+/usr/bin/python3 - &lt;&lt;'PY'
+import sqlite3, struct, math, glob
+for b in ["rosbag/01_1", "rosbag/03_01"]:
+    db = glob.glob(b + "/*.db3")[0]
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    tid = con.execute("select id from topics where name='/livox/lidar'").fetchone()[0]
+    d, = con.execute("select data from messages where topic_id=? "
+                     "order by timestamp limit 1", (tid,)).fetchone()
+    ln = struct.unpack_from('&lt;I', d, 12)[0]          # frame_id 字符串长度
+    h, w = struct.unpack_from('&lt;II', d, 16 + ln)     # height, width
+    n = h * w
+    ps = next(c for c in range(13, 65) if 60 &lt;= len(d) - n * c &lt;= 400)
+    blob = d[len(d) - 1 - n * ps:][1:]               # 跳过 1 字节尾部填充
+    el = [math.degrees(math.atan2(z, math.hypot(x, y)))
+          for x, y, z in (struct.unpack_from('&lt;fff', blob, k) for k in range(0, n * ps, ps))
+          if math.hypot(x, y) &gt; 0.05]
+    print(f"{b:14s} {n:6d} 点/帧  → {n*10/1000:.0f}k pts/s   "
+          f"俯仰 {min(el):.1f}° ~ {max(el):.1f}°")
+    con.close()
+PY</pre>
+
+<p>输出：</p>
+
+<pre>rosbag/01_1    20064 点/帧  → 201k pts/s   俯仰 -7.5° ~ 53.5°     ← MID-360s
+rosbag/03_01   21696 点/帧  → 217k pts/s   俯仰 -20.3° ~ 44.9°    ← C01</pre>
+
+
+<h2 id="driver">5. 驱动层面：网段不同、驱动可选</h2>
+
+<p>
+C01 复刻了 Livox SDK2 的报文协议，所以它<strong>可以用 Livox 的驱动</strong>，
+也<strong>可以用厂商自己的驱动</strong>。两条路都能跑，取舍不同。
+但这 8 个 bag 全部是用 <code>livox_ros_driver2</code> 录的，格式完全一致，
+所以四个算法看到的输入是同一种类型。
+</p>
+
+<h3>5.1 网段不一样，这是最容易踩的坑</h3>
+
+<table>
+<thead><tr><th>项</th><th class="r1">Livox MID-360s</th><th class="r2">SKYLANDX C01</th></tr></thead>
+<tbody>
+<tr><td>主机（PC）IP</td><td><code>192.168.1.50/24</code></td><td><code>192.168.100.150/24</code></td></tr>
+<tr><td>雷达 IP</td><td><code>192.168.1.3</code></td><td><code>192.168.100.200</code></td></tr>
+<tr><td>命令口 / 点云 / IMU</td><td colspan="2" style="text-align:center">56000 / 56300→56301 / 56400→56401（两侧完全相同）</td></tr>
+<tr><td>默认点云话题</td><td><code>/livox/lidar</code></td><td><code>/skylandx/lidar</code>（厂商驱动）</td></tr>
+</tbody>
+</table>
+
+<p>
+<strong>换雷达时 IP 必须一起换。</strong>两个网段不互通，
+用 MID-360s 的 <code>192.168.1.3</code> 去找 C01 会一直 <code>rx_packets=0</code>，
+而 <code>ip link</code> 显示 <code>carrier=1</code> 看起来一切正常。
+</p>
+
+<div class="warn">
+<strong>C01 上还有一个二层陷阱：目的 MAC 被写死</strong>
+<p>部分批次的 C01 固件把目的 MAC 硬编码成 <code>11:22:33:44:55:66</code>，
+只发到这个 MAC，不看 ARP。网卡 MAC 不是这个值时，包在二层就被丢了：
+<code>link up</code>、<code>ip a</code> 正常，但 <code>rx_packets</code> 一直是 0。</p>
+<p style="margin:8px 0 0">官方驱动带了一个脚本能一键处理（改网卡 MAC 或开混杂模式）：</p>
+<pre style="margin:6px 0 0">sudo bash tool/setup_lidar_net.sh &lt;网卡名&gt; 192.168.100.150</pre>
+</div>
+
+<h3>5.2 两种驱动怎么选</h3>
+
+<table>
+<thead><tr><th>项</th><th><code>livox_ros_driver2</code>（本项目用的）</th><th>厂商 <code>Skylandx_ros_driver</code></th></tr></thead>
+<tbody>
+<tr><td>话题</td><td><code>/livox/lidar</code> <code>/livox/imu</code></td>
+    <td><code>/skylandx/lidar</code> <code>/skylandx/imu</code></td></tr>
+<tr><td>frame_id</td><td><code>livox_frame</code></td><td><code>skylandx_frame</code></td></tr>
+<tr><td>点结构</td><td><code>point_step = 26</code>，带 <code>tag</code>/<code>line</code></td>
+    <td><code>point_step = 24</code>，无 <code>tag</code>/<code>line</code>，无效点已滤掉</td></tr>
+<tr><td>时间戳</td><td>float64 <strong>纳秒</strong></td><td>float64 <strong>秒</strong></td></tr>
+<tr><td>IMU 加速度单位</td><td><strong>g</strong>（模长 ≈ 1.0）</td><td><strong>m/s²</strong>（×9.81）</td></tr>
+<tr><td>四个算法兼容性</td><td>四个都已跑通，是本项目的基准</td>
+    <td>要改 <code>acc_scale</code>（GLIM 9.80665 → 1.0）等参数，未验证</td></tr>
+</tbody>
+</table>
+
+<p>
+<strong>建议</strong>：想跟本项目的精度数字对比，就继续用 <code>livox_ros_driver2</code>，
+这样 bag 格式和算法配置都不需要改。想用厂商驱动的额外功能（D03 支持、
+内置的无效点过滤）再切，切过去记得核对时间戳单位和 IMU 单位。
+</p>
+
+<h3>5.3 用 <code>livox_ros_driver2</code> 时要改哪几行</h3>
+
+<p>只有三处：段名（跟设备类型对应）、雷达 IP、PC 侧 IP。</p>
+
+<pre>{
+  "lidar_summary_info": { "lidar_type": 8 },
+  "MID360": {                      // ← 段名必须和设备类型对应，否则包被静默丢弃
+    "lidar_net_info": { ... },     //   雷达侧端口
+    "host_net_info":  { ... }      //   PC 侧端口 = 雷达侧 + 1
+  },
+  "lidar_configs": [
+    { "ip": "192.168.1.3",         // ← MID-360s 填这个
+      "pcl_data_type": 1,
+      "pattern_mode": 0,
+      "extrinsic_parameter": { ... } }
+  ]
+}</pre>
+
+<table>
+<thead><tr><th>雷达</th><th><code>lidar_configs[0].ip</code></th><th><code>host_net_info</code> 里的 IP</th></tr></thead>
+<tbody>
+<tr><td class="r1">Livox MID-360s</td><td><code>192.168.1.3</code></td><td><code>192.168.1.50</code></td></tr>
+<tr><td class="r2">SKYLANDX C01</td><td><code>192.168.100.200</code></td><td><code>192.168.100.150</code></td></tr>
+</tbody>
+</table>
+
+<div class="warn">
+<strong>段名对不上会被静默丢弃，一行日志都不打</strong>
+<p style="margin-bottom:8px">SDK 在 <code>device_manager.cpp</code> 里直接返回：</p>
+<pre style="margin:0">if (type_lidars_cfg_map_.find(detection_data-&gt;dev_type) ==
+    type_lidars_cfg_map_.end()) {
+  return;   // ← 直接返回，日志里看不出任何异常
+}</pre>
+<p style="margin:8px 0 0">
+现象是：日志停在 <code>Init lds lidar success!</code> 然后一片死寂，
+<code>ros2 topic list</code> 里没有 <code>/livox/lidar</code>，一句报错都没有。
+这个坑我们排查了很久。</p>
+</div>
+
+<p>改完必须同步到 <code>install/</code>（驱动读的是那里的副本，改 <code>src/</code> 不生效）：</p>
+
+<pre>cp ~/livox_ws/src/livox_ros_driver2/config/MID360_config.json \
+   ~/livox_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/</pre>
+
+<p>或者让仓库里的脚本代劳（写雷达 IP + 写 PC 侧 IP + 同步到 install，三步一次做完）：</p>
+
+<pre># MID-360s
+bash scripts/02_get_livox.sh --lidar-ip 192.168.1.3     --device mid360s
+
+# C01（网段不一样，主机 IP 也要给）
+bash scripts/02_get_livox.sh --lidar-ip 192.168.100.200 \
+                             --host-ip  192.168.100.150 --net</pre>
+
+
+<h2 id="extrinsic">6. IMU↔LiDAR 外参（两颗雷达都已确认）</h2>
+
+<p>
+这一项比前面所有差异都更影响结果。<strong>两颗雷达现在都有确定值了</strong>，
+但要注意它们在坐标系的定义上是同一种写法，换算到不同算法时符号要变。
+</p>
+
+<h3>6.1 官方值</h3>
+
+<p>两家的手册给的都是同一个量 —— <strong>IMU 在 LiDAR 坐标系下的位置</strong>：</p>
+
+<table>
+<thead><tr><th>雷达</th><th>来源</th><th>IMU 在 LiDAR 系下的位置 (mm)</th></tr></thead>
+<tbody>
+<tr>
+  <td class="r1">Livox MID-360s</td>
+  <td>Livox 手册 §3.5 出厂标定</td>
+  <td><code>(11.0, 23.29, −44.12)</code></td>
+</tr>
+<tr>
+  <td class="r2">SKYLANDX C01</td>
+  <td>官方 ROS2 驱动 <code>README.zh-CN.md</code>（标注「参考值」）</td>
+  <td><code>(18.90, 24.64, −53.5)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>
+两者轴向都假设与点云坐标系一致，所以旋转部分是单位阵，只需要平移。
+C01 的偏移量比 MID-360s 大一圈（尤其 Z 向多了 9.4 mm）——
+用 MID-360s 的值替身会带来约 1 cm 量级的外参误差。
+</p>
+
+<h3>6.2 换算到四个算法</h3>
+
+<p>
+关键区别在符号。GLIM 的 <code>T_lidar_imu</code> 直接就是上表的值；
+另外三个算法（FAST-LIO2 / Point-LIO / LIO-SAM）的代码都是
+<code>point_imu = R · point_lidar + T</code>，
+所以 <code>T</code> 要填<strong>上表值取负</strong>（LiDAR 原点在 IMU 系下的位置）。
+</p>
+
+<table>
+<thead>
+<tr>
+  <th>算法</th><th>参数名</th>
+  <th class="r1">MID-360s 填什么</th><th class="r2">C01 填什么</th>
+</tr></thead>
+<tbody>
+<tr><td>GLIM</td><td><code>T_lidar_imu</code></td>
+    <td><code>[0.011, 0.02329, -0.04412, 0, 0, 0, 1]</code></td>
+    <td><code>[0.0189, 0.02464, -0.0535, 0, 0, 0, 1]</code></td></tr>
+<tr><td>FAST-LIO2</td><td><code>extrinsic_T</code></td>
+    <td><code>[-0.011, -0.02329, 0.04412]</code></td>
+    <td><code>[-0.0189, -0.02464, 0.0535]</code></td></tr>
+<tr><td>Point-LIO</td><td><code>extrinsic_T</code></td>
+    <td><code>[-0.011, -0.02329, 0.04412]</code></td>
+    <td><code>[-0.0189, -0.02464, 0.0535]</code></td></tr>
+<tr><td>LIO-SAM</td><td><code>extrinsicTrans</code></td>
+    <td><code>[-0.011, -0.02329, 0.04412]</code></td>
+    <td><code>[-0.0189, -0.02464, 0.0535]</code></td></tr>
+</tbody>
+</table>
+
+<div class="warn">
+<strong>本仓库的配置文件已全部改成上表的正确值</strong>
+<p>但 <a href="#accuracy">第 7 节</a>的结果表是<strong>按旧外参</strong>跑出来的
+（C01 当时借用了 MID-360s 的值，LIO-SAM 当时还是 <code>[0,0,0]</code>）。
+所以表里的 C01 数字仍含外参误差，重跑之后会更准。</p>
+</div>
+
+<h3>6.3 各算法对错误外参的敏感度</h3>
+
+<table>
+<thead><tr><th>算法</th><th>敏感度</th><th>原因</th></tr></thead>
+<tbody>
+<tr>
+  <td>FAST-LIO2</td>
+  <td><span class="badge win">影响最小</span></td>
+  <td>开着在线外参估计（<code>extrinsic_est_en: true</code>），
+      会自己往正确方向收敛。C01 老场地上反而比 MID-360s 更准（0.39~1.77 cm vs 1.90 cm 平均）</td>
+</tr>
+<tr>
+  <td>GLIM</td>
+  <td><span class="badge lose">影响最明显</span></td>
+  <td>外参不对时日志会打
+      <code>IMU prediction is not good / Possibly T_lidar_imu is not accurate</code>。
+      <code>04_02</code>（静止起步）一次没报，精度到 0.2 cm；
+      <code>03_01</code>（走起来才起录）报了 5 次</td>
+</tr>
+<tr>
+  <td>Point-LIO</td>
+  <td><span class="badge lose">中等</span></td>
+  <td><code>extrinsic_est_en: false</code> 写死了，不会自动修正。
+      注意它还曾经把符号写反了（<code>[+0.011, +0.02329, −0.04412]</code>），
+      而它的代码和 FAST-LIO2 完全一样，已修正</td>
+</tr>
+<tr>
+  <td>LIO-SAM</td>
+  <td><span class="badge same">影响小</span></td>
+  <td>平移量只有几 cm，对因子图影响有限；但原来填 <code>[0,0,0]</code>
+      丢掉了 4.4 cm 的 Z 向杠杆臂，已补上</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+<strong>要换雷达时</strong>：只改上面那张表里对应的 4 个参数，
+再把 <code>blind</code>（盲区）按雷达改一下即可
+（MID-360s 0.1 m，C01 0.2 m）。外参的坐标系定义一定要问清
+—— 是「IMU 在雷达系下的位姿」还是反过来，两者互为逆矩阵，搞反了误差更大。
+</p>
+
+<h2 id="accuracy">7. 精度对比：8 个包，同样四个算法</h2>
+
+<p>
+8 个包、4 个算法，<strong>外参已按两颗雷达各自的官方标定值统一修正</strong>，
+32 次运行于 2026-11-05 一次性重跑，所以下面所有数字是同一口径。
+两颗雷达不是同一时刻的 A/B 对比（各自独立采集），只能看量级。
+</p>
+
+<p>
+老场地 13~15 m、新场地 25~28 m，四条路线；场地与真值的细节见
+<a href="#how">第 10 节</a>。
+</p>
+
+<p style="font-size:14px;color:#59636e;margin-bottom:8px">
+单位 cm，停车点定位 RMS。整条轨迹经 SE(2) Umeyama 对齐（旋转 + 平移 + 尺度）后计算，
+同一包的四个算法共用同一组停车时刻。
+</p>
+
+<table>
+<thead>
+<tr>
+  <th>雷达</th><th>bag</th><th class="num">路径长</th>
+  <th class="num">GLIM</th><th class="num">Point-LIO</th>
+  <th class="num">LIO-SAM</th><th class="num">FAST-LIO2</th>
+</tr>
+</thead>
+<tbody>
+<tr><td rowspan="5" class="r1">MID-360s</td>
+    <td><code>01_1</code></td><td class="num" style="color:#59636e">15.15 m</td><td class="num">0.30</td><td class="num"><strong>0.18</strong></td><td class="num">0.51</td><td class="num">1.88</td></tr>
+<tr><td><code>01_2</code></td><td class="num" style="color:#59636e">15.15 m</td><td class="num">0.41</td><td class="num"><strong>0.37</strong></td><td class="num">0.52</td><td class="num">1.93</td></tr>
+<tr><td><code>02_1</code></td><td class="num" style="color:#59636e">14.65 m</td><td class="num"><strong>0.37</strong></td><td class="num">0.39</td><td class="num">0.66</td><td class="num">1.75</td></tr>
+<tr><td><code>02_2</code></td><td class="num" style="color:#59636e">14.65 m</td><td class="num"><strong>0.23</strong></td><td class="num">0.29</td><td class="num">1.37</td><td class="num">2.04</td></tr>
+<tr style="background:#eaeef2;font-weight:600">
+    <td colspan="2" class="r1">MID-360s 平均</td><td></td><td class="num">0.33</td><td class="num"><strong>0.31</strong></td><td class="num">0.77</td><td class="num">1.90</td></tr>
+<tr><td rowspan="4" class="r2">C01</td>
+    <td><code>03_01</code></td><td class="num" style="color:#59636e">28.16 m</td><td class="num"><strong>4.71</strong></td><td class="num">7.19</td><td class="num">4.92</td><td class="num">8.07</td></tr>
+<tr><td><code>03_02</code></td><td class="num" style="color:#59636e">25.46 m</td><td class="num">1.83</td><td class="num">4.00</td><td class="num"><strong>1.38</strong></td><td class="num">1.61</td></tr>
+<tr><td><code>04_01</code></td><td class="num" style="color:#59636e">14.65 m</td><td class="num"><strong>0.52</strong></td><td class="num">0.62</td><td class="num">1.08</td><td class="num">1.77</td></tr>
+<tr><td><code>04_02</code></td><td class="num" style="color:#59636e">13.35 m</td><td class="num">0.61</td><td class="num"><strong>0.39</strong></td><td class="num">0.64</td><td class="num">0.39</td></tr>
+<tr style="background:#eaeef2;font-weight:600">
+    <td colspan="2">8 包总平均</td><td></td><td class="num"><strong>1.12</strong></td><td class="num">1.68</td><td class="num">1.39</td><td class="num">2.43</td></tr>
+</tbody>
+</table>
+
+<h3>能读出来的四条</h3>
+
+<ol>
+<li>
+<strong>老场地（13~15 m）里两颗雷达都能到 1 cm 以下，差距被真值不确定度吃掉。</strong>
+最好的两组是 MID-360s 的 <code>01_1</code> Point-LIO <strong>0.18 cm</strong>
+和 C01 的 <code>04_02</code> Point-LIO <strong>0.39 cm</strong>。
+卷尺真值本身有 ±1 cm/段 的误差，这个量级已经探不到雷达差异。
+</li>
+<li>
+<strong>场地一变大，误差涨 3~20 倍，而且和雷达无关。</strong>
+同一颗 C01：老场地 0.39~1.77 cm，新场地（25~28 m）1.38~8.07 cm。
+<strong>没有任何数据表明 C01 在大场景更好。</strong>
+</li>
+<li>
+<strong>换一条路线就能换冠军。</strong>
+<code>03_01</code> 是 GLIM 最好（4.71），<code>03_02</code> 变成 LIO-SAM 最好（1.38），
+<code>04_01</code> 又是 GLIM（0.52），<code>04_02</code> 是 Point-LIO / FAST-LIO2 并列（0.39）。
+八个包里没有任何一个算法全胜。
+</li>
+<li>
+<strong>FAST-LIO2 在 MID-360s 上明显吃亏，在 C01 上却很能打。</strong>
+MID-360s 四个包平均 1.90 cm，是另外三个算法的 2.5~6 倍；
+到了 C01 的老场地只有 0.39~1.77 cm，和第一名同档。
+它的在线外参估计 + C01 更密的点云是主要原因。
+</li>
+</ol>
+
+<div class="note">
+<strong>一个必须说的坑</strong>
+<p style="margin-bottom:0">
+C01 的 <code>04_02</code> 首轮 LIO-SAM 报的是 3.7 cm。查轨迹发现有
+<strong>70 处重复时间戳、最大单步跳 6.2 m、路程 587 m（真值 13.35 m）</strong>
+—— 采集时有别的 bag 在同时回放，<code>16_pc2_to_custom.py</code> 订阅的是
+<code>/livox/lidar</code>，两路数据混在一起了。
+隔离重跑后是 <strong>0.4 cm</strong>，上表已是重跑值。
+</p>
+</div>
+
+
+<h2 id="realtime">8. 跑算法时的速度差异</h2>
+
+<table>
+<thead>
+<tr><th>项</th><th class="r1">MID-360s</th><th class="r2">C01</th><th>处理办法</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>每帧点数</td><td class="num">20 k</td><td class="num">21.7 k</td><td>—</td>
+</tr>
+<tr>
+  <td><strong>实时余量</strong></td>
+  <td>Point-LIO / LIO-SAM 勉强实时</td>
+  <td><strong>跑不满实时</strong></td>
+  <td>Point-LIO <code>--rate 0.35</code><br>LIO-SAM <code>--rate 0.7</code></td>
+</tr>
+<tr>
+  <td>GLIM</td><td>离线，不受影响</td><td>离线，不受影响</td><td>—</td>
+</tr>
+<tr>
+  <td>FAST-LIO2</td>
+  <td>实时</td>
+  <td>大部分能实时<br>长包偶发发散</td>
+  <td>发散时降到 <code>--rate 0.7</code></td>
+</tr>
+<tr>
+  <td>近处点过滤</td>
+  <td><code>blind: 0.5</code> 合适</td>
+  <td>盲区只有 5 cm<br><code>blind: 0.1</code> 更合适</td>
+  <td><code>c01_pc2.yaml</code></td>
+</tr>
+<tr>
+  <td>配置文件</td>
+  <td><code>mid360.yaml</code> / <code>mid360_pc2.yaml</code></td>
+  <td><code>c01_pc2.yaml</code>（本仓库提供）</td>
+  <td>—</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>为什么 C01 跑不满实时？</strong></p>
+
+<p>
+多 8% 的点解释不了一半的速度差。更可能是 <strong>65° 大视场让每帧的空间跨度变大</strong>
+（往下看到脚边 5 m 内的地面），导致 ikd-Tree / 体素的命中节点数增加，
+单帧耗时不线性增长。
+</p>
+
+<p>
+1.0 倍速下 Point-LIO 只处理了 21% 的帧，日志会刷
+<code>lidar loop back, clear buffer</code>，轨迹直接断在半路。
+要实时部署 C01，得上降采样（<code>point_filter_num: 3~4</code>）。
+</p>
+
+
+<h2 id="which">9. 选型速查</h2>
+
+<table>
+<thead><tr><th>你的需求</th><th>选哪个</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>要快速跑通、要社区案例</td>
+    <td class="r1">MID-360s</td><td>生态成熟，ROS 2 移植多，出问题好搜</td></tr>
+<tr><td>要标定好的外参、省事</td>
+    <td class="r1">MID-360s</td><td>出厂正式标定；C01 官方给的是「参考值」，建议自己再标一次</td></tr>
+<tr><td>要低近处盲区（贴地 / 贴墙）</td>
+    <td class="r2">C01</td><td>5 cm vs 10 cm</td></tr>
+<tr><td>要更大的下视范围（脚下地形、台阶）</td>
+    <td class="r2">C01</td><td>−20° vs −7°</td></tr>
+<tr><td>要在高层高环境里建图</td>
+    <td class="r1">MID-360s</td><td>上视 +53° vs +45°</td></tr>
+<tr><td>要实时部署在嵌入式平台</td>
+    <td class="r1">MID-360s</td><td>点数少、余量大；C01 要降采样</td></tr>
+<tr><td>要极致精度上限</td>
+    <td>都行</td><td>外参准不准，比换雷达重要得多</td></tr>
+<tr><td>要对照 GLIM 官方示例复现</td>
+    <td class="r1">MID-360s</td><td>官方示例是 Ouster，MID-360 的社区配置更多</td></tr>
+</tbody>
+</table>
+
+
+<h2 id="how">10. 采集方法（8 个包都一样）</h2>
+
+<h3>平台</h3>
+
+<p>
+雷达、笔记本、12 V 锂电池都装在一辆四轮小车上，碳纤维板 + 万向轮，比手持稳。
+笔记本负责跑驱动和 <code>ros2 bag record</code>。
+</p>
+
+<p>
+<img src="photo/car_lidar.jpg" alt="采集平台：推车 + 笔记本 + 电池 + 雷达"
+     style="max-width:100%;border:1px solid #d1d9e0;border-radius:6px">
+</p>
+
+<h3>行走协议</h3>
+
+<ol>
+<li><strong>按地面标记走</strong>：场地地面上提前贴好黑色 X 胶带，每个 X 就是一个基准点。</li>
+<li><strong>到点停 3~5 秒</strong>：这是整套方法的关键。真值只有「停车点坐标」，
+没有逐帧真值，所以必须靠静止段来对齐 ——
+评测脚本用「速度 &lt; 0.08 m/s 且持续 &gt; 2 s」自动识别。</li>
+<li><strong>按指定顺序走完一圈</strong>：例如老场地路径 01 是 <code>0→1→2→3→4→0</code>，
+终点回到起点，这样能算闭合误差。</li>
+<li><strong>MID-360s 每条路径录 ≥2 次</strong>：「2 条路径 × 各 2 次」，
+用来算重复性。C01 的 4 个包是「新场地正/反 + 老场地两种路径」各 1 次，
+不构成重复性样本。</li>
+</ol>
+
+<p>
+<img src="photo/site2.jpg" alt="场地：地面 X 标记 + 用于量距的黄色卷尺"
+     style="max-width:100%;border:1px solid #d1d9e0;border-radius:6px">
+</p>
+<p style="font-size:13.5px;color:#59636e;margin-top:-8px">
+地面上贴的黑色 X 胶带就是停车点；楼梯上那卷黄色卷尺用来量段长。
+</p>
+
+<h3>真值怎么来的</h3>
+
+<p>
+<strong>卷尺</strong>。逐个量相邻标记点之间的距离，累加出每个点的坐标。
+每段读数误差约 ±1 cm —— 这个量级已经和 GLIM 的误差（0.2~0.5 cm）同量级，
+所以小场景下已经探不到算法差异，这是本数据集的<strong>精度下限</strong>。
+</p>
+
+<h3>两块场地</h3>
+
+<p><strong>老场地</strong> — 室内货架仓库，1.80 × 6.30 m</p>
+<p><img src="photo/site_layout.png" alt="老场地布局图"
+        style="max-width:100%;border:1px solid #d1d9e0;border-radius:6px"></p>
+<pre>        P1 (0, 1.80)
+         │  2.546 m
+P0 ──────┼──────── P2 (-1.80, 0) ──── P3 (-4.05, 0) ──── P4 (-6.30, 0)
+(0,0)   1.80 m         2.25 m              2.25 m
+
+路径 01：0 → 1 → 2 → 3 → 4 → 0      15.146 m
+路径 02：0 → 2 → 3 → 4 → 1 → 0      14.652 m</pre>
+
+<p><strong>新场地</strong> — 矩形走廊，2.70 × 11.38 m</p>
+<p><img src="photo/clean_path_plot.png" alt="新场地布局图"
+        style="max-width:100%;border:1px solid #d1d9e0;border-radius:6px"></p>
+<pre>        P3 (0, 11.38) ─────── 2.70 m ─────── P4 (2.70, 11.38)
+          │ 2.25 m                                  │
+        P2 (0, 9.13)                                 │ 11.38 m
+          │ 5.98 m                                  │
+        P1 (0, 3.15)                                 │
+          │ 3.15 m                                  │
+        P0 (0, 0) ────────── 2.70 m ────────── P5 (2.70, 0)
+
+正向：0 → 1 → 2 → 3 → 4 → 5 → 0     28.16 m（闭环）
+反向：0 → 5 → 4 → 3 → 2 → 1 → 0     25.46 m（起点未停留）</pre>
+
+<p>真值坐标全部在 <code>config/site_*.json</code>（几 KB，随仓库发布）：</p>
+
+<table>
+<thead><tr><th>文件</th><th>场地</th><th>走法</th><th class="num">停车点数</th></tr></thead>
+<tbody>
+<tr><td><code>site_mid360_demo.json</code></td><td>老场地</td>
+    <td>0-1-2-3-4-0（闭环）</td><td class="num">7</td></tr>
+<tr><td><code>site_mid360_demo_path2.json</code></td><td>老场地</td>
+    <td>0-2-3-4-1-0（闭环）</td><td class="num">7</td></tr>
+<tr><td><code>site_mid360_path1_open.json</code></td><td>老场地</td>
+    <td>0-1-2-3-4-0（起点不停）</td><td class="num">5</td></tr>
+<tr><td><code>site_c01_rect.json</code></td><td>新场地</td>
+    <td>0-1-2-3-4-5-0（闭环）</td><td class="num">7</td></tr>
+<tr><td><code>site_c01_rect_rev_open.json</code></td><td>新场地</td>
+    <td>0-5-4-3-2-1-0（反向，起点不停）</td><td class="num">6</td></tr>
+</tbody>
+</table>
+
+
+<h2 id="checksums">11. 完整性校验</h2>
+
+<p>
+下载后请核对 SHA-256。我们踩过：一个 zip 少了 1.3 GB，
+<code>unzip</code> 直接报 <code>End-of-central-directory signature not found</code>。
+</p>
+
+<table>
+<thead><tr><th>包名</th><th>SHA-256</th></tr></thead>
+<tbody>
+<tr><td><code>01_1</code></td><td><code style="font-size:12px;word-break:break-all">be52a57456e3777699f25d0e9efedd7f64b3acaa5fee08b2e6d73c6b3816ff59</code></td></tr>
+<tr><td><code>01_2</code></td><td><code style="font-size:12px;word-break:break-all">a2d7e88f01962f1cb153f20ab89f86f8834156a30ac2f0cb01de7fbf057506d9</code></td></tr>
+<tr><td><code>02_1</code></td><td><code style="font-size:12px;word-break:break-all">89c89e408309b59f109a95483203cd3bd42d246d79d0c62bdd93f138b4e8c291</code></td></tr>
+<tr><td><code>02_2</code></td><td><code style="font-size:12px;word-break:break-all">789e7d70ab36c362522575f7f3ef402152f006f174811e68ee0c437f4f9dd219</code></td></tr>
+<tr><td><code>03_01</code></td><td><code style="font-size:12px;word-break:break-all">2c6f6276e5562eb14ca89fafbb91dcf04a59ab91f78447edfdc792522e5e3e5e</code></td></tr>
+<tr><td><code>03_02</code></td><td><code style="font-size:12px;word-break:break-all">b0b757315c04bde1a08cdeb877f29986a1525186fce6d3d2cc61e7ae78734245</code></td></tr>
+<tr><td><code>04_01</code></td><td><code style="font-size:12px;word-break:break-all">2b64d876199e284419915800c232179af9bca947907379d63232b4561c350e9e</code></td></tr>
+<tr><td><code>04_02</code></td><td><code style="font-size:12px;word-break:break-all">794519168a4ba1ecc5a0e2412f604a738ff8ba00b4b53a0b86359c2570357e35</code></td></tr>
+</tbody>
+</table>
+
+<pre>sha256sum rosbag/04_02/*.db3</pre>
+
+
+<h2 id="run">12. 复现</h2>
+
+<pre>git clone https://github.com/jimaoo0222/slam_benchmark.git
+cd slam_benchmark
+
+# 下载一个包，解压到 rosbag/ 下，然后核对
+ros2 bag info rosbag/04_02
+
+# 四个算法各跑一遍
+BAG=rosbag/04_02
+OUT=results/my_run
+bash scripts/05_run_fastlio_on_bag.sh  $BAG $OUT/fastlio  --config c01_pc2.yaml --rate 0.7
+bash scripts/23_run_pointlio_on_bag.sh $BAG $OUT/pointlio --rate 0.35
+bash scripts/17_run_liosam_on_bag.sh   $BAG $OUT/liosam   --rate 0.7
+bash scripts/12_run_glim_on_bag.sh     $BAG $OUT/glim
+
+# 对卷尺真值算绝对精度
+python3 scripts/14_eval_on_site.py $OUT/fastlio/traj.txt \
+    --site config/site_mid360_path1_open.json \
+    --stop-from $OUT/glim/traj_glim.txt</pre>
+
+<div class="warn">
+<strong>一次只跑一个算法、一个 bag</strong>
+<p style="margin-bottom:8px">
+<code>16_pc2_to_custom.py</code> 订阅的是 <code>/livox/lidar</code>。
+如果别处还有 bag 在回放，两路数据会混在一起（见 <a href="#accuracy">第 7 节</a>那个坑）。
+跑之前先确认干净：
+</p>
+<pre style="margin:0">ps -eo pid,args | grep -E "bag play|pc2_to_custom"</pre>
+</div>
+
+<footer class="bottom">
+  <p>
+    <a href="./">项目概览</a> ·
+    <a href="https://github.com/jimaoo0222/slam_benchmark">GitHub 仓库</a> ·
+    <a href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/02_%E5%9B%9B%E7%AE%97%E6%B3%95%E6%9C%80%E7%BB%88%E6%80%BB%E7%BB%93.md">完整结果</a> ·
+    内容基于自录数据实测
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

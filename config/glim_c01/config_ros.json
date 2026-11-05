@@ -1,0 +1,50 @@
+{
+  /*** ROS-related config —— 已改为 MID-360s ***/
+  "glim_ros": {
+    "enable_local_mapping": true,
+    "enable_global_mapping": true,
+    "keep_raw_points": false,
+
+    "imu_time_offset": 0.0,
+    "points_time_offset": 0.0,
+
+    // Livox 的 IMU 报的是「g」（静止时模长约 1.0），所以必须明确告诉 GLIM。
+    // 设 0.0 是「自动检测」，但首次启动若一直在动會检测错，这里写死更稳。
+    "acc_scale": 9.80665,
+    "ang_scale": 1.0,
+
+    // ⚠️ Livox 驱动的 IMU 和点云都用 frame_id="livox_frame"，
+    // 留空自动检测会导致两者同名 → TF 父子相同报错。
+    // 必须显式区分开，T_lidar_imu 会把它们连起来。
+    "imu_frame_id": "livox_imu",
+    "lidar_frame_id": "livox_frame",
+    "base_frame_id": "",
+    "odom_frame_id": "odom",
+    "map_frame_id": "map",
+    "publish_imu2lidar": true,
+    "tf_time_offset": 1e-6,
+
+    // 本机编译时用了 -DBUILD_WITH_VIEWER=OFF，所以没有 libstandard_viewer.so。
+    // rviz_viewer 由 glim_ros 编出来，用它做可视化。
+    // 只列实际编出来的。libmemory_monitor.so 属于 glim_ext（未装），
+    // 列了会启动报错。
+    "extension_modules": [
+      "librviz_viewer.so"
+    ],
+
+    "imu_topic": "/livox/imu",
+    "points_topic": "/livox/lidar",
+    "image_topic": "/image",
+
+    "imu_qos": {
+      "profile": "sensor_data",
+      "depth": 1000
+    },
+    "points_qos": {
+      "profile": "sensor_data"
+    },
+    "image_qos": {
+      "profile": "sensor_data"
+    }
+  }
+}

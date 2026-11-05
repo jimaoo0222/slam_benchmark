@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLAM/LIO Benchmark</title>
+<meta name="description" content="Livox MID-360s 与 SKYLANDX C01 双雷达，对 GLIM / Point-LIO / LIO-SAM / FAST-LIO2 四个开源 LIO 算法做卷尺真值绝对精度评测">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./">SLAM/LIO Benchmark</a>
+    <nav>
+      <a href="./" class="active">概览</a>
+      <a href="dataset.html">数据集与雷达对比</a>
+      <a href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/02_%E5%9B%9B%E7%AE%97%E6%B3%95%E6%9C%80%E7%BB%88%E6%80%BB%E7%BB%93.md">算法结果</a>
+      <a href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/01_MID360_vs_C01_%E9%9B%B7%E8%BE%BE%E5%AF%B9%E6%AF%94.md">雷达对比</a>
+      <a href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/03_%E5%9B%9B%E7%AE%97%E6%B3%95%E6%89%8B%E5%8A%A8%E5%90%AF%E5%8A%A8%E4%B8%8ERViz.md">上手</a>
+      <a href="https://github.com/jimaoo0222/slam_benchmark">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+<h1>开源 SLAM/LIO 算法 Benchmark</h1>
+<p class="subtitle">
+自建场地 · 自录数据 · 卷尺标定真值 —— 对 4 个主流 LiDAR-Inertial Odometry 算法做<strong>绝对精度</strong>评测
+</p>
+
+<div class="stats">
+  <div><div class="v">2</div><div class="k">雷达型号</div></div>
+  <div><div class="v">4</div><div class="k">算法</div></div>
+  <div><div class="v">8</div><div class="k">自录 bag</div></div>
+  <div><div class="v">32</div><div class="k">次运行</div></div>
+  <div><div class="v">0.2 cm</div><div class="k">最佳点位 RMS</div></div>
+</div>
+
+<h2 id="results">主要结果</h2>
+
+<p>点位 RMS（cm，越小越好）。整条轨迹经 SE(2) Umeyama 对齐后，停车点位置误差的均方根：</p>
+
+<table>
+<thead>
+<tr>
+  <th>算法</th><th>回环</th>
+  <th class="num">MID-360s<br><span style="font-weight:400;font-size:12px">4 包平均</span></th>
+  <th class="num">C01 范围<br><span style="font-weight:400;font-size:12px">4 包</span></th>
+  <th class="num">8 包总平均</th>
+  <th class="num">闭合误差<br><span style="font-weight:400;font-size:12px">MID-360s</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>GLIM</strong></td><td>有</td>
+  <td class="num">0.33</td>
+  <td class="num">0.5 ~ 4.7</td>
+  <td class="num"><strong>1.12</strong></td>
+  <td class="num">0.44</td>
+</tr>
+<tr>
+  <td><strong>Point-LIO</strong></td><td>无</td>
+  <td class="num"><strong>0.31</strong></td>
+  <td class="num">0.4 ~ 7.2</td>
+  <td class="num">1.68</td>
+  <td class="num"><strong>0.43</strong></td>
+</tr>
+<tr>
+  <td>LIO-SAM</td><td>有</td>
+  <td class="num">0.77</td>
+  <td class="num">0.6 ~ 4.9</td>
+  <td class="num">1.39</td>
+  <td class="num">1.29</td>
+</tr>
+<tr>
+  <td>FAST-LIO2</td><td>无</td>
+  <td class="num">1.90</td>
+  <td class="num">0.4 ~ 8.1</td>
+  <td class="num">2.43</td>
+  <td class="num">5.94</td>
+</tr>
+</tbody>
+</table>
+
+<p style="font-size:13px;color:#59636e;margin-top:10px">
+外参已按两颗雷达的官方标定值统一修正，32 次运行于 2026-11-05 全部重跑，
+8 个包是同一口径。单包最好成绩：<code>01_1</code> 的 Point-LIO <strong>0.18 cm</strong>。
+</p>
+
+<h2 id="docs">文档</h2>
+
+<div class="cards">
+  <a class="card" href="dataset.html">
+    <h3>数据集与两颗雷达的对比</h3>
+    <p>MID-360s vs C01 的规格与实测差异、驱动异同、外参问题、精度对比；
+       8 个 bag 的下载、采集方法、场地真值与 SHA-256 校验和。</p>
+  </a>
+  <a class="card" href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/02_%E5%9B%9B%E7%AE%97%E6%B3%95%E6%9C%80%E7%BB%88%E6%80%BB%E7%BB%93.md">
+    <h3>四算法最终总结</h3>
+    <p>四个算法的原理与接入坑、评测方法学、8 个 bag × 4 算法的完整数据表、选型指南、局限。</p>
+  </a>
+  <a class="card" href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/01_MID360_vs_C01_%E9%9B%B7%E8%BE%BE%E5%AF%B9%E6%AF%94.md">
+    <h3>MID-360s vs C01</h3>
+    <p>两颗雷达的规格对照、从 bag 里量出来的实测差异、驱动异同、外参问题、怎么判断一份 bag 是哪颗录的。</p>
+  </a>
+  <a class="card" href="https://github.com/jimaoo0222/slam_benchmark/blob/main/docs/03_%E5%9B%9B%E7%AE%97%E6%B3%95%E6%89%8B%E5%8A%A8%E5%90%AF%E5%8A%A8%E4%B8%8ERViz.md">
+    <h3>手动启动与 RViz</h3>
+    <p>不靠一键脚本，手敲命令跑四个算法并看 RViz 效果。每个算法的终端数、Fixed Frame、坑都列清楚了。</p>
+  </a>
+</div>
+
+<h2 id="algorithms">参与的算法</h2>
+
+<table>
+<thead><tr><th>算法</th><th>出处</th><th>核心思路</th><th>回环</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>GLIM</strong></td><td>日本产综研 AIST</td>
+  <td>连续时间轨迹 + 体素平面匹配 ICP + 全局位姿图</td><td>有</td>
+</tr>
+<tr>
+  <td><strong>Point-LIO</strong></td><td>港大 MARS</td>
+  <td>逐点更新的 IEKF（IMU 速率），能扛剧烈运动</td><td>无</td>
+</tr>
+<tr>
+  <td>LIO-SAM</td><td>MIT / 港大移植版</td>
+  <td>特征提取（角点/平面）+ 因子图 + 回环检测</td><td>有</td>
+</tr>
+<tr>
+  <td>FAST-LIO2</td><td>港大 MARS</td>
+  <td>帧式紧耦合 IEKF + ikd-Tree 增量地图</td><td>无</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="quickstart">快速开始</h2>
+
+<pre>git clone https://github.com/jimaoo0222/slam_benchmark.git
+cd slam_benchmark
+
+# 1) 下载一个 bag 放进 rosbag/（见「数据集」页）
+# 2) 跑一个算法（包名 01_/02_ 自动用 MID-360s 外参，03_/04_ 自动用 C01 外参）
+bash scripts/05_run_fastlio_on_bag.sh rosbag/04_02 results/run/fastlio
+
+# 3) 对卷尺真值评测
+python3 scripts/14_eval_on_site.py results/run/fastlio/traj.txt \
+    --site config/site_mid360_path1_open.json \
+    --stop-from results/run/fastlio/traj.txt</pre>
+
+
+<footer class="bottom">
+  <p>
+    <a href="https://github.com/jimaoo0222/slam_benchmark">GitHub 仓库</a> ·
+    <a href="dataset.html">数据集与雷达对比</a> ·
+    内容基于自录数据实测
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

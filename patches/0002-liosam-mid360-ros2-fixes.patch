@@ -1,0 +1,20 @@
+LIO-SAM MID-360 ROS2 移植版 —— 本机必要修补
+上游: https://github.com/UV-Lab/LIO-SAM_MID360_ROS2_PKG
+
+修补 1-2（autorccar_interfaces 裁掉 vision_msgs；livox_ros_driver2 加 COLCON_IGNORE）:
+见 scripts/18_get_liosam.sh 第 2、3 步（无法用 git diff 完整表达：涉及 mv/touch）
+
+修补 3（GTSAM 4.2+ shared_ptr）:
+diff --git a/src/imuPreintegration.cpp b/src/imuPreintegration.cpp
+index 0d73505..5615132 100644
+--- a/src/imuPreintegration.cpp
++++ b/src/imuPreintegration.cpp
+@@ -221,7 +221,7 @@ class IMUPreintegration : public ParamServer {
+         pubImuOdometry = create_publisher<nav_msgs::msg::Odometry>(odomTopic + "_incremental", qos_imu);
+         pubNavState = create_publisher<autorccar_interfaces::msg::NavState>("/nav_topic", 10);
+ 
+-        boost::shared_ptr<gtsam::PreintegrationParams> p = gtsam::PreintegrationParams::MakeSharedU(imuGravity);
++        auto p = gtsam::PreintegrationParams::MakeSharedU(imuGravity);  // GTSAM 4.3 返回 std::shared_ptr
+         p->accelerometerCovariance =
+             gtsam::Matrix33::Identity(3, 3) * pow(imuAccNoise, 2);  // acc white noise in continuous
+         p->gyroscopeCovariance =

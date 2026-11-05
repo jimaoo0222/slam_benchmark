@@ -1,0 +1,142 @@
+FAST-LIO2: 用 MID-360 点级真实时间戳做运动畸变校正
+====================================================
+
+上游问题
+--------
+mid360_handler() 用「yaw 变化 / omega_l」反推每个点的时间偏移：
+
+    omega_l = 0.361 * SCAN_RATE;
+    curvature = (yaw_fp[layer] - yaw_angle) / omega_l;
+
+这套公式只对【重复扫描】雷达（Avia 等）成立。MID-360 是【非重复扫描】，
+yaw 不单调，算出的 offset_time 完全错乱 → 运动畸变校正失效 →
+建图重影、结构发糊（实测点数比正确值多 40%）。
+
+MID-360 的 PointCloud2 每个点自带 timestamp 字段，但上游没用。
+本 patch 让 mid360_handler 优先用它（自动识别秒/毫秒/微秒/纳秒），
+只有在没有 timestamp 字段时才回退到原来的 yaw 估算。
+
+实测（142 s 室内多层建筑，1418 帧）
+------------------------------------
+  · 地图点数 327,476 → 196,721（-40%，重影消除）
+  · 地板出现清晰扫描线，楼层轮廓可辨
+  · 日志新增一行：`[mid360_handler] 每点时间戳来源: PointCloud2.timestamp  帧内跨度 0.0998 s`
+
+如何应用
+--------
+    cd ~/lio_ws/src/fast_lio
+    git apply /home/jimaoo/slam_benchmark/patches/0001-fastlio-mid360-point-timestamp.patch
+    # 或者重装后直接照着下面的 hunk 手改（只有两处）
+
+⚠️ 重装 fast_lio 会覆盖源码，记得重新打这个 patch。
+
+--- a/src/preprocess.h
++++ b/src/preprocess.h
+@@ -121,6 +121,8 @@
+   float reflectivity; /**< Reflectivity   */
+   uint8_t tag;        /**< Livox point tag   */
+   uint8_t line;       /**< Laser line id     */
++  double timestamp;   /**< 点级时间戳（秒），MID-360 的 PointCloud2 自带；
++                           没有这个字段的包会被 PCL 留成 0 */
+ } LivoxPointXyzrtl;
+ }
+ POINT_CLOUD_REGISTER_POINT_STRUCT(livox_ros::LivoxPointXyzrtl,
+@@ -130,6 +132,7 @@
+     (float, reflectivity, reflectivity)
+     (uint8_t, tag, tag)
+     (uint8_t, line, line)
++    (double, timestamp, timestamp)
+ )
+ 
+ class Preprocess
+--- a/src/preprocess.cpp
++++ b/src/preprocess.cpp
+@@ -494,7 +494,31 @@
+   std::vector<float> time_last(N_SCANS, 0.0);  // last offset time
+   /*****************************************************************/
+ 
+-  given_offset_time = false;
++  // ⭐ MID-360 是【非重复扫描】，yaw 不单调，所以上面那套「按 yaw 反推时间」
++  //    的公式（为 Avia 这类重复扫描雷达写的）会算出完全错乱的 offset_time，
++  //    导致运动畸变校正失效、地图糊成一团。
++  //    MID-360 的 PointCloud2 每个点自带 timestamp，有就优先用它。
++  //    注意单位：实测是【纳秒】（一帧约 1e8）。这里按「一帧约 0.1 秒」自动识别。
++  const double t_first = pl_orig.points[0].timestamp;
++  const double t_span_raw = fabs(pl_orig.points[plsize - 1].timestamp - t_first);
++
++  double t_scale = 1.0;        // 秒
++  if (t_span_raw < 1.0)        t_scale = 1.0;    // 已经是秒
++  else if (t_span_raw < 1e4)   t_scale = 1e-3;   // 毫秒（0.1 s = 100）
++  else if (t_span_raw < 1e7)   t_scale = 1e-6;   // 微秒（0.1 s = 1e5）
++  else                         t_scale = 1e-9;   // 纳秒（0.1 s = 1e8）
++
++  const double t_span = t_span_raw * t_scale;
++  const bool use_stamp = (t_span_raw > 0.0) && (t_span < 1.0);  // 一帧应在 0~1 s 内
++  given_offset_time = use_stamp;
++
++  static bool logged_time_source = false;
++  if (!logged_time_source) {
++    logged_time_source = true;
++    std::cout << "[mid360_handler] 每点时间戳来源: "
++              << (use_stamp ? "PointCloud2.timestamp" : "yaw 估算（兜底）")
++              << "  帧内跨度 " << t_span << " s" << std::endl;
++  }
+   double yaw_first = atan2(pl_orig.points[0].y, pl_orig.points[0].x) * 57.29578;
+   double yaw_end = yaw_first;
+   int layer_first = pl_orig.points[0].line;
+@@ -522,9 +546,16 @@
+     int layer = pl_orig.points[i].line;
+     double yaw_angle = atan2(added_pt.y, added_pt.x) * 57.2957;
+ 
+-    if (is_first[layer])
++    if (use_stamp)
++    {
++      // 有真实点级时间戳：先按识别出的单位统一成【秒】
++      //（和 avia_handler 的 `offset_time / 1e6` 一致，curvature 存秒）
++      added_pt.curvature = (pl_orig.points[i].timestamp - t_first) * t_scale;
++      if (added_pt.curvature < 0.0) added_pt.curvature = 0.0;
++    }
++    else if (is_first[layer])
+     {
+-      // printf("layer: %d; is first: %d", layer, is_first[layer]);
++      // 没有时间戳才回退到 yaw 估算（对非重复扫描不准，仅作兜底）
+       yaw_fp[layer] = yaw_angle;
+       is_first[layer] = false;
+       added_pt.curvature = 0.0;
+@@ -532,22 +563,24 @@
+       time_last[layer] = added_pt.curvature;
+       continue;
+     }
+-
+-    // compute offset time
+-    if (yaw_angle <= yaw_fp[layer])
+-    {
+-      added_pt.curvature = (yaw_fp[layer] - yaw_angle) / omega_l;
+-    }
+     else
+     {
+-      added_pt.curvature = (yaw_fp[layer] - yaw_angle + 360.0) / omega_l;
+-    }
++      // compute offset time
++      if (yaw_angle <= yaw_fp[layer])
++      {
++        added_pt.curvature = (yaw_fp[layer] - yaw_angle) / omega_l;
++      }
++      else
++      {
++        added_pt.curvature = (yaw_fp[layer] - yaw_angle + 360.0) / omega_l;
++      }
+ 
+-    if (added_pt.curvature < time_last[layer])
+-      added_pt.curvature += 360.0 / omega_l;
++      if (added_pt.curvature < time_last[layer])
++        added_pt.curvature += 360.0 / omega_l;
+ 
+-    yaw_last[layer] = yaw_angle;
+-    time_last[layer] = added_pt.curvature;
++      yaw_last[layer] = yaw_angle;
++      time_last[layer] = added_pt.curvature;
++    }
+ 
+     if (added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z > (blind * blind))
+     {
